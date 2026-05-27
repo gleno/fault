@@ -27,15 +27,41 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Tag next patch version
+      - name: Tag from conventional commits
         shell: bash
         run: |
-          git fetch --tags --force
-          latest=$(git tag -l 'v*.*.*' | sort -V | tail -n1)
-          latest=${latest:-v0.0.0}
-          IFS='.' read -r major minor patch <<< "${latest#v}"
-          next="v${major}.${minor}.$((patch + 1))"
-          echo "latest: ${latest} -> next: ${next}"
+          git fetch --tags --force --quiet
+
+          last=$(git tag -l 'v*.*.*' | sort -V | tail -n1)
+          if [ -z "${last}" ]; then
+            last="v0.0.0"
+            range="HEAD"
+          else
+            range="${last}..HEAD"
+          fi
+
+          subjects=$(git log --format='%s' "${range}")
+          echo "Commits since ${last}:"
+          echo "${subjects}" | sed 's/^/  /'
+
+          if echo "${subjects}" | grep -qE '^feat(\([^)]+\))?!?:'; then
+            bump=minor
+          elif echo "${subjects}" | grep -qE '^fix(\([^)]+\))?!?:'; then
+            bump=patch
+          else
+            echo "No feat/fix commits since ${last} — no release."
+            echo "No release: no \`feat\`/\`fix\` commits since ${last}." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          IFS='.' read -r major minor patch <<< "${last#v}"
+          if [ "${bump}" = minor ]; then
+            next="v${major}.$((minor + 1)).0"
+          else
+            next="v${major}.${minor}.$((patch + 1))"
+          fi
+
+          echo "Bump ${bump}: ${last} -> ${next}"
           git tag "${next}"
           git push origin "${next}"
-          echo "Released **${next}**" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Released **${next}** (${bump} bump from ${last})" >> "${GITHUB_STEP_SUMMARY}"
