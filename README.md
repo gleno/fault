@@ -1,6 +1,6 @@
 # fault
 
-Error handling for Go: stack-traced errors, semantic tags (user fault, auth, not-found, retryable), cause coalescing, and panic recovery — built on `github.com/pkg/errors`.
+Error handling for Go: stack-traced errors, semantic tags (user fault, auth, not-found, retryable), cause coalescing, and panic recovery. Zero dependencies.
 
 ## Install
 
@@ -178,5 +178,6 @@ Types:
 
 - `Fault` — chainable `error` interface: `From(err error, message string) Fault`, `WithMessage(message string) Fault`, `AsUserFault`, `AsValueMissing`, `AsRetryable`, `AsAuthFault`, plus `Is` / `Unwrap`.
 - `Tag` — `int` alias over HTTP status codes: `InternalFault` (500), `RetryableFault` (504), `UserFault` (400), `AuthFault` (401), `NotFoundFault` (404).
-- `StackTrace` — alias for `errors.StackTrace` from `github.com/pkg/errors`.
-- `StackTracer` — `interface { StackTrace() errors.StackTrace }`.
+- `StackTrace` — `[]Frame`, a captured call stack (innermost frame first). Renders with `%+v` as a legible trace, omitting Go runtime machinery.
+- `Frame` — a single program counter; formats as `<func>\n\t<file>:<line>` under `%+v`.
+- `StackTracer` — `interface { StackTrace() StackTrace }`.

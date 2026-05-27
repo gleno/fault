@@ -1,23 +1,10 @@
 package fault
 
-import (
-	"reflect"
-	"testing"
-	"unsafe"
-
-	"github.com/pkg/errors"
-)
+import "testing"
 
 func TestPopStackEmptyStackSlice(t *testing.T) {
-	// errors.New produces a *fundamental with an embedded *stack pointing at a
-	// real stack slice. Force that slice to length zero (non-nil pointer, empty
-	// slice) and run it through popStack.
-	err := errors.New("boom")
-
-	stackField := reflect.ValueOf(err).Elem().FieldByName("stack")
-	stackFieldPtr := (**[]uintptr)(unsafe.Pointer(stackField.UnsafeAddr()))
-	empty := []uintptr{}
-	*stackFieldPtr = &empty
+	// A stack error whose captured stack is empty must survive popStack without panicking.
+	err := &_stackError{msg: "boom", stack: stack{}}
 
 	defer func() {
 		if r := recover(); r != nil {

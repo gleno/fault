@@ -1,49 +1,123 @@
 package fault
 
 import (
+	"errors"
 	"fmt"
-	"reflect"
+	"io"
 	"runtime"
-	"unsafe"
-
-	"github.com/pkg/errors"
+	"strings"
 )
 
-// StackTrace should be aliases rather than newtype'd, so it can work with any of the
-// functions we export from pkg/errors.
-type StackTrace = errors.StackTrace
+// StackTrace is a captured call stack, innermost (origin) frame first.
+type StackTrace []Frame
 
 type StackTracer interface {
-	StackTrace() errors.StackTrace
+	StackTrace() StackTrace
 }
 
-// popStack removes the top of the stack from an errors stack trace.
+// Frame is a single program counter from a captured stack.
+type Frame uintptr
+
+func (f Frame) pc() uintptr { return uintptr(f) - 1 }
+
+func (f Frame) location() (function, file string, line int) {
+	fn := runtime.FuncForPC(f.pc())
+	if fn == nil {
+		return "", "", 0
+	}
+	file, line = fn.FileLine(f.pc())
+	return fn.Name(), file, line
+}
+
+// Format renders a single frame. "%+v" gives "<func>\n\t<file>:<line>"; "%v"/"%s" give
+// the file:line; "%d" the line.
+func (f Frame) Format(s fmt.State, verb rune) {
+	function, file, line := f.location()
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			io.WriteString(s, trimFuncName(function))
+			io.WriteString(s, "\n\t")
+		}
+		fmt.Fprintf(s, "%s:%d", file, line)
+	case 's':
+		io.WriteString(s, file)
+	case 'd':
+		fmt.Fprintf(s, "%d", line)
+	}
+}
+
+// Format renders the whole trace for "%+v", one frame per block, omitting Go runtime
+// machinery so the trace stays legible.
+func (st StackTrace) Format(s fmt.State, verb rune) {
+	if verb != 'v' || !s.Flag('+') {
+		return
+	}
+	for _, f := range st {
+		function, _, _ := f.location()
+		if isMachineryFrame(function) {
+			continue
+		}
+		io.WriteString(s, "\n")
+		f.Format(s, verb)
+	}
+}
+
+func isMachineryFrame(function string) bool {
+	return function == "" || strings.HasPrefix(function, "runtime.")
+}
+
+func trimFuncName(name string) string {
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		return name[i+1:]
+	}
+	return name
+}
+
+type stack []uintptr
+
+func (s stack) trace() StackTrace {
+	trace := make(StackTrace, len(s))
+	for i := range s {
+		trace[i] = Frame(s[i])
+	}
+	return trace
+}
+
+// capture records the call stack with its top frame at the caller of the constructor that
+// invokes it (skipping runtime.Callers, capture itself and that constructor). The public
+// entry points then popStack their own frame so the trace begins at user code. Kept
+// noinline so the frame arithmetic holds regardless of inlining decisions.
+//
+//go:noinline
+func capture() stack {
+	const depth = 32
+	var pcs = make([]uintptr, depth)
+	var n = runtime.Callers(3, pcs)
+	return stack(pcs[:n])
+}
+
+//go:noinline
+func newError(msg string, cause error) *_stackError {
+	return &_stackError{msg: msg, cause: cause, stack: capture()}
+}
+
+//go:noinline
+func withStackError(cause error) *_stackError {
+	return &_stackError{cause: cause, stack: capture()}
+}
+
+// popStack removes the top frame from a stack error, dropping our own infrastructure frame
+// so the trace begins at the code that called us. It is a no-op on errors without a stack.
 func popStack(err error) error {
 	if err == nil {
 		return err
 	}
-
-	// We want to remove us, the internal/errors.Errorf function, from the error stack we just
-	// produced. There's no official way of reaching into the error and adjusting this, as
-	// the stack is stored as a private field on an unexported struct.
-	//
-	// This does some unsafe badness to adjust that field, which should not be repeated
-	// anywhere else.
-	var stackField = reflect.ValueOf(err).Elem().FieldByName("stack")
-	if !stackField.IsValid() || stackField.IsZero() {
+	se, ok := err.(*_stackError)
+	if !ok || len(se.stack) == 0 {
 		return err
 	}
-	var stackFieldPtr = (**[]uintptr)(unsafe.Pointer(stackField.UnsafeAddr()))
-	if len(**stackFieldPtr) == 0 {
-		return err
-	}
-
-	// Remove the first of the frames, dropping 'us' from the error stack trace.
-	frames := (**stackFieldPtr)[1:]
-
-	// Assign to the internal stack field
-	*stackFieldPtr = &frames
-
+	se.stack = se.stack[1:]
 	return err
 }
 
@@ -56,31 +130,9 @@ func callers(skip int) []uintptr {
 // ancestorOfCause returns true if the caller looks to be an ancestor of the given stack
 // trace. We check this by seeing whether our stack prefix-matches the cause stack, which
 // should imply the error was generated directly from our goroutine.
-func ancestorOfCause(ourStack []uintptr, causeStack errors.StackTrace) bool {
+func ancestorOfCause(ourStack []uintptr, causeStack StackTrace) bool {
 	// Stack traces are ordered such that the deepest frame is first. We'll want to check
 	// for prefix matching in reverse.
-	//
-	// As an example, imagine we have a prefix-matching stack for ourselves:
-	// [
-	//   "github.com/onsi/ginkgo/internal/leafnodes.(*runner).runSync",
-	//   "github.com/incident-io/core/server/pkg/errors_test.TestSuite",
-	//   "testing.tRunner",
-	//   "runtime.goexit"
-	// ]
-	//
-	// We'll want to compare this against an error cause that will have happened further
-	// down the stack. An example stack trace from such an error might be:
-	// [
-	//   "github.com/incident-io/core/server/pkg/errors.Errorf",
-	//   "github.com/incident-io/core/server/pkg/errors_test.glob..func1.2.2.2.1",,
-	//   "github.com/onsi/ginkgo/internal/leafnodes.(*runner).runSync",
-	//   "github.com/incident-io/core/server/pkg/errors_test.TestSuite",
-	//   "testing.tRunner",
-	//   "runtime.goexit"
-	// ]
-	//
-	// They prefix match, but we'll have to handle the match carefully as we need to match
-	// from back to forward.
 
 	// We can't possibly prefix match if our stack is larger than the cause stack.
 	if len(ourStack) > len(causeStack) {
@@ -100,21 +152,16 @@ func ancestorOfCause(ourStack []uintptr, causeStack errors.StackTrace) bool {
 
 // Public API
 
-// Errorf acts as pkg/errors.New, producing a stack traced error, but supports
-// interpolating of message parameters. Use this when you want the stack trace to start at
-// the place you create the error.
+// Errorf produces a stack-traced error, interpolating message parameters. Use this when
+// you want the stack trace to start at the place you create the error.
 func Errorf(msg string, args ...any) error {
-	return popStack(errors.New(fmt.Sprintf(msg, args...)))
+	return popStack(newError(fmt.Sprintf(msg, args...), nil))
 }
 
 // Wrap creates a new error from a cause, decorating the original error message with a
-// prefix.
-//
-// It differs from the pkg/errors Wrap/Wrapf by idempotently creating a stack trace,
-// meaning we won't create another stack trace when there is already a stack trace present
-// that matches our current program position.
+// prefix. It idempotently creates a stack trace, meaning we won't create another stack
+// trace when there is already one present that matches our current program position.
 func Wrap(cause error, msg string) error {
-
 	if cause == nil {
 		return nil
 	}
@@ -128,25 +175,24 @@ func Wrap(cause error, msg string) error {
 			if msg == "" {
 				return cause // already carries our stack, nothing to decorate
 			}
-			return errors.WithMessage(cause, msg) // no stack added, no pop required
+			return &_messageError{msg: msg, cause: cause} // no stack added, no pop required
 		}
 	}
 
 	// An empty message adds no prefix; we still ensure a stack trace is present.
 	if msg == "" {
-		return popStack(errors.WithStack(cause))
+		return popStack(withStackError(cause))
 	}
 
 	// Otherwise we can't see a stack trace that represents ourselves, so let's add one.
-	return popStack(errors.Wrap(cause, msg))
+	return popStack(newError(msg, cause))
 }
 
 func Wrapf(cause error, msg string, args ...any) error {
 	if cause == nil {
 		return nil
 	}
-	var message = fmt.Sprintf(msg, args...)
-	return Wrap(cause, message)
+	return Wrap(cause, fmt.Sprintf(msg, args...))
 }
 
 func GetStackTrace(err error) StackTrace {

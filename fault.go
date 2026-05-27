@@ -1,10 +1,6 @@
 package fault
 
-import (
-	"fmt"
-
-	"github.com/pkg/errors"
-)
+import "fmt"
 
 type Fault interface {
 	error
@@ -40,17 +36,17 @@ func From(err error, message string) Fault {
 
 func MakeUserErrorf(format string, args ...any) Fault {
 	var msg = fmt.Sprintf(format, args...)
-	return TagAsUserFault(errors.New(msg), msg)
+	return TagAsUserFault(newError(msg, nil), msg)
 }
 
 func MakeAuthErrorf(format string, args ...any) Fault {
 	var msg = fmt.Sprintf(format, args...)
-	return TagAsAuthError(errors.New(msg), msg)
+	return TagAsAuthError(newError(msg, nil), msg)
 }
 
 func MakeRetryableErrorf(format string, args ...any) Fault {
 	var msg = fmt.Sprintf(format, args...)
-	return TagAsRetryable(errors.New(msg), msg)
+	return TagAsRetryable(newError(msg, nil), msg)
 }
 
 // GetFullError will write all .Error() messages in possibly wrapped error,
@@ -64,7 +60,7 @@ func GetFullError(err error) string {
 	// err.Error() already renders the whole wrapped chain, so the stack trace is
 	// all we add — re-walking Unwrap here would just repeat each layer's message.
 	if stackTrace := GetStackTrace(err); stackTrace != nil {
-		return fmt.Sprintf("%+v\n%s", stackTrace, err.Error())
+		return fmt.Sprintf("%s\n%+v", err.Error(), stackTrace)
 	}
 
 	return err.Error()

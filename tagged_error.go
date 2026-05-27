@@ -1,9 +1,8 @@
 package fault
 
 import (
+	"errors"
 	"net/http"
-
-	"github.com/pkg/errors"
 )
 
 type Tag int
