@@ -23,8 +23,9 @@ func (s *_ErrorWithCause) Unwrap() error {
 	return s.cause
 }
 
+//go:noinline
 func (s *_ErrorWithCause) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: s._Error, cause: Wrap(err, message)}
+	return &_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(1))}
 }
 
 func (s *_ErrorWithCause) WithMessage(msg string) Fault {

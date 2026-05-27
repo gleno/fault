@@ -28,7 +28,7 @@ func tag(err error, tag Tag, reason string) Fault {
 		return nil
 	}
 
-	var wrr = popStack(popStack(Wrap(err, reason)))
+	var wrr = popStack(popStack(Wrap(err, "")))
 
 	return &_ErrorWithTag{
 		_ErrorWithCause{

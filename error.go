@@ -45,8 +45,9 @@ func (s *_Error) AsAuthFault(msg string) Fault {
 	return tag(s, AuthFault, msg)
 }
 
+//go:noinline
 func (s *_Error) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: *s, cause: Wrap(err, message)}
+	return &_ErrorWithCause{_Error: *s, cause: wrap(err, message, callers(1))}
 }
 
 func (s *_Error) WithMessage(msg string) Fault {

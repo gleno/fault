@@ -27,10 +27,11 @@ func MissingValue(msg string) Fault {
 	return Sentinel(msg).AsValueMissing(msg)
 }
 
+//go:noinline
 func From(err error, message string) Fault {
 	return &_ErrorWithCause{
 		_Error: _Error{msg: message},
-		cause:  err,
+		cause:  wrap(err, "", callers(1)),
 	}
 }
 
@@ -60,7 +61,7 @@ func GetFullError(err error) string {
 	// err.Error() already renders the whole wrapped chain, so the stack trace is
 	// all we add — re-walking Unwrap here would just repeat each layer's message.
 	if stackTrace := GetStackTrace(err); stackTrace != nil {
-		return fmt.Sprintf("%s\n%+v", err.Error(), stackTrace)
+		return fmt.Sprintf("%s%+v", err.Error(), stackTrace)
 	}
 
 	return err.Error()
