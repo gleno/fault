@@ -30,7 +30,7 @@ func popStack(err error) error {
 	// This does some unsafe badness to adjust that field, which should not be repeated
 	// anywhere else.
 	var stackField = reflect.ValueOf(err).Elem().FieldByName("stack")
-	if stackField.IsZero() {
+	if !stackField.IsValid() || stackField.IsZero() {
 		return err
 	}
 	var stackFieldPtr = (**[]uintptr)(unsafe.Pointer(stackField.UnsafeAddr()))

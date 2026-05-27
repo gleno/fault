@@ -153,3 +153,43 @@ func TestFaultBuilderChaining(t *testing.T) {
 		t.Errorf("expected retryable")
 	}
 }
+
+func TestSentinelAsAuthFault(t *testing.T) {
+	var s = Sentinel("forbidden")
+	var f = s.AsAuthFault("not allowed")
+
+	if !IsAuthFault(f) {
+		t.Errorf("expected fault to be auth fault")
+	}
+}
+
+func TestErrorWithCauseIsMatchesSameMessage(t *testing.T) {
+	var a = From(Errorf("cause a"), "same context")
+	var b = From(Errorf("cause b"), "same context")
+
+	if !errors.Is(a, b) {
+		t.Errorf("expected two _ErrorWithCause with the same message to match via errors.Is")
+	}
+}
+
+func TestErrorWithCauseFrom(t *testing.T) {
+	var base = From(Errorf("root"), "outer")
+	var derived = base.From(Errorf("inner"), "middle")
+
+	if derived.Error() != "outer: middle: inner" {
+		t.Errorf("unexpected error message: %q", derived.Error())
+	}
+
+	if !errors.Is(derived, base) {
+		t.Errorf("expected derived to keep the original message and match base via errors.Is")
+	}
+}
+
+func TestErrorWithCauseAsAuthFault(t *testing.T) {
+	var base = From(Errorf("token bad"), "verify")
+	var f = base.AsAuthFault("unauthorized")
+
+	if !IsAuthFault(f) {
+		t.Errorf("expected fault to be auth fault")
+	}
+}

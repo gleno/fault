@@ -108,6 +108,30 @@ func TestGetStackTraceReturnsNilForPlainError(t *testing.T) {
 	}
 }
 
+func TestPopStackNilReturnsNil(t *testing.T) {
+	if popStack(nil) != nil {
+		t.Errorf("expected popStack(nil) to return nil")
+	}
+}
+
+func TestPopStackStacklessErrorReturnsUnchanged(t *testing.T) {
+	var stackless = Sentinel("no stack field here")
+
+	var out error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("popStack panicked on a stackless error: %v", r)
+			}
+		}()
+		out = popStack(stackless)
+	}()
+
+	if out != stackless {
+		t.Errorf("expected popStack to return the stackless error unchanged")
+	}
+}
+
 func panicWithError() (err error) {
 	defer func() { RecoverPanic(recover(), &err) }()
 	panic(fmt.Errorf("oh no"))

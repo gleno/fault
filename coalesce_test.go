@@ -260,3 +260,59 @@ func TestCoalescePreservesWrappedErrors(t *testing.T) {
 		t.Errorf("expected errors.Is to traverse into wrapped error and find base")
 	}
 }
+
+func TestCoalesceIsEmptyReturnsFalse(t *testing.T) {
+	var empty = &_CoalesceError{}
+
+	if errors.Is(empty, Errorf("anything")) {
+		t.Errorf("expected empty coalesce to not match any error via errors.Is")
+	}
+}
+
+func TestCoalesceAsEmptyReturnsFalse(t *testing.T) {
+	var empty = &_CoalesceError{}
+
+	var target *testTypedError
+	if errors.As(empty, &target) {
+		t.Errorf("expected empty coalesce to not match any type via errors.As")
+	}
+}
+
+func TestCoalesceFrom(t *testing.T) {
+	var result = Coalesce(Errorf("first"), Errorf("second")).(*_CoalesceError)
+	var derived = result.From(Errorf("cause"), "batch context")
+
+	if !strings.Contains(derived.Error(), "batch context") {
+		t.Errorf("expected wrapper message in error, got %q", derived.Error())
+	}
+	if !strings.Contains(derived.Error(), "first; second") {
+		t.Errorf("expected coalesced message preserved in cause, got %q", derived.Error())
+	}
+}
+
+func TestCoalesceAsUserFault(t *testing.T) {
+	var result = Coalesce(Errorf("first"), Errorf("second")).(*_CoalesceError)
+	var f = result.AsUserFault("bad batch")
+
+	if !IsUserFault(f) {
+		t.Errorf("expected user fault")
+	}
+}
+
+func TestCoalesceAsValueMissing(t *testing.T) {
+	var result = Coalesce(Errorf("first"), Errorf("second")).(*_CoalesceError)
+	var f = result.AsValueMissing("nothing found")
+
+	if !IsNotFoundFault(f) {
+		t.Errorf("expected not found fault")
+	}
+}
+
+func TestCoalesceAsAuthFault(t *testing.T) {
+	var result = Coalesce(Errorf("first"), Errorf("second")).(*_CoalesceError)
+	var f = result.AsAuthFault("denied")
+
+	if !IsAuthFault(f) {
+		t.Errorf("expected auth fault")
+	}
+}

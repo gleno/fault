@@ -1,6 +1,7 @@
 package fault
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -105,5 +106,69 @@ func TestMissingValue(t *testing.T) {
 
 	if !IsNotFoundFault(err) {
 		t.Errorf("expected not found fault")
+	}
+}
+
+func TestMakeAuthErrorf(t *testing.T) {
+	var tagged = MakeAuthErrorf("user %q is not allowed", "bob")
+
+	if !IsAuthFault(tagged) {
+		t.Errorf("expected auth fault")
+	}
+}
+
+func TestMakeRetryableErrorf(t *testing.T) {
+	var tagged = MakeRetryableErrorf("attempt %d failed", 2)
+
+	if !IsRetryable(tagged) {
+		t.Errorf("expected retryable fault")
+	}
+}
+
+func TestTaggedErrorFrom(t *testing.T) {
+	var tagged = TagAsRetryable(Errorf("base"), "reason")
+	var derived = tagged.From(Errorf("downstream"), "while fetching")
+
+	if !strings.Contains(derived.Error(), "while fetching") {
+		t.Errorf("expected wrapper message in error, got %q", derived.Error())
+	}
+	if !strings.Contains(derived.Error(), "downstream") {
+		t.Errorf("expected cause message in error, got %q", derived.Error())
+	}
+}
+
+func TestTaggedErrorAsUserFault(t *testing.T) {
+	var tagged = TagAsRetryable(Errorf("base"), "reason")
+	var f = tagged.AsUserFault("bad input")
+
+	if !IsUserFault(f) {
+		t.Errorf("expected user fault")
+	}
+}
+
+func TestTaggedErrorAsValueMissing(t *testing.T) {
+	var tagged = TagAsRetryable(Errorf("base"), "reason")
+	var f = tagged.AsValueMissing("missing record")
+
+	if !IsNotFoundFault(f) {
+		t.Errorf("expected not found fault")
+	}
+}
+
+func TestTaggedErrorAsRetryable(t *testing.T) {
+	var tagged = TagAsUserFault(Errorf("base"), "reason")
+	var f = tagged.AsRetryable("will retry")
+
+	if !IsRetryable(f) {
+		t.Errorf("expected retryable fault")
+	}
+}
+
+func TestTaggedErrorAsAuthFault(t *testing.T) {
+	var tagged = TagAsRetryable(Errorf("base"), "reason")
+	var f = tagged.AsAuthFault("forbidden")
+
+	if !IsAuthFault(f) {
+		t.Errorf("expected auth fault")
 	}
 }
