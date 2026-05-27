@@ -44,7 +44,10 @@ func (s *_ErrorWithTag) WithMessage(msg string) Fault {
 }
 
 func (s *_ErrorWithTag) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: s._Error, cause: Wrap(err, message)}
+	return &_ErrorWithTag{
+		_ErrorWithCause{_Error: s._Error, cause: Wrap(err, message)},
+		s.tag,
+	}
 }
 
 func (s *_ErrorWithTag) AsUserFault(msg string) Fault {

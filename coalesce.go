@@ -12,9 +12,11 @@ type _CoalesceError struct {
 var _ Fault = (*_CoalesceError)(nil)
 
 func (s *_CoalesceError) Error() string {
-	var msgs = make([]string, len(s.errs))
-	for i, err := range s.errs {
-		msgs[i] = err.Error()
+	var msgs = make([]string, 0, len(s.errs))
+	for _, err := range s.errs {
+		if err != nil {
+			msgs = append(msgs, err.Error())
+		}
 	}
 	return strings.Join(msgs, "; ")
 }
@@ -41,11 +43,13 @@ func (s *_CoalesceError) Unwrap() error {
 }
 
 func (s *_CoalesceError) Errors() []error {
-	return s.errs
+	out := make([]error, len(s.errs))
+	copy(out, s.errs)
+	return out
 }
 
 func (s *_CoalesceError) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: _Error{msg: message}, cause: Wrap(err, s.Error())}
+	return &_ErrorWithCause{_Error: _Error{msg: message}, cause: Coalesce(err, s)}
 }
 
 func (s *_CoalesceError) WithMessage(msg string) Fault {

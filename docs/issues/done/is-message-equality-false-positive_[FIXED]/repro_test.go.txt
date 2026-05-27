@@ -1,0 +1,25 @@
+package fault
+
+import (
+	"testing"
+
+	"github.com/pkg/errors"
+)
+
+func TestIsFalsePositiveFromMessageCollision(t *testing.T) {
+	notFound := Sentinel("not found")
+	unrelated := From(Errorf("disk exploded"), "not found")
+
+	if errors.Is(unrelated, notFound) {
+		t.Errorf("expected unrelated error NOT to match sentinel, but errors.Is returned true (message-equality false positive)")
+	}
+}
+
+func TestIsFalsePositiveWithMessageCollision(t *testing.T) {
+	notFound := Sentinel("not found")
+	unrelated := Sentinel("disk exploded").WithMessage("not found")
+
+	if errors.Is(unrelated, notFound) {
+		t.Errorf("expected WithMessage-wrapped unrelated error NOT to match sentinel, but errors.Is returned true")
+	}
+}

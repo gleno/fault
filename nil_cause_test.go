@@ -1,0 +1,39 @@
+package fault
+
+import "testing"
+
+func mustNotPanic(t *testing.T, name string, fn func()) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("%s panicked: %v", name, r)
+		}
+	}()
+	fn()
+}
+
+func TestBuildersNilCauseClass(t *testing.T) {
+	cases := map[string]func() string{
+		"pkg_From":            func() string { return From(nil, "msg").Error() },
+		"Error_From":          func() string { return Sentinel("base").From(nil, "ctx").Error() },
+		"ErrorWithCause_From": func() string { return From(Sentinel("x"), "y").From(nil, "ctx").Error() },
+		"ErrorWithTag_From": func() string {
+			tagged := Sentinel("base").AsRetryable("r")
+			return tagged.From(nil, "ctx").Error()
+		},
+		"CoalesceError_From": func() string {
+			c := Coalesce(Sentinel("a"), Sentinel("b"))
+			cf := c.(Fault)
+			return cf.From(nil, "ctx").Error()
+		},
+		"CoalesceError_nil_member": func() string {
+			return (&_CoalesceError{errs: []error{nil}}).Error()
+		},
+	}
+
+	for name, fn := range cases {
+		t.Run(name, func(t *testing.T) {
+			mustNotPanic(t, name, func() { _ = fn() })
+		})
+	}
+}

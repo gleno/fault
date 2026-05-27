@@ -26,7 +26,7 @@ func RecoverPanic(r any, errPtr *error) {
 		}
 	}
 
-	if err != nil {
+	if err != nil && errPtr != nil {
 		// Pop twice: once for the errors package, then again for the defer function we must
 		// run this under. We want the stacktrace to originate at the source of the panic, not
 		// in the infrastructure that catches it.

@@ -34,6 +34,9 @@ func popStack(err error) error {
 		return err
 	}
 	var stackFieldPtr = (**[]uintptr)(unsafe.Pointer(stackField.UnsafeAddr()))
+	if len(**stackFieldPtr) == 0 {
+		return err
+	}
 
 	// Remove the first of the frames, dropping 'us' from the error stack trace.
 	frames := (**stackFieldPtr)[1:]
@@ -122,8 +125,16 @@ func Wrap(cause error, msg string) error {
 		// as inferred by prefix matching our current program counter stack, then we only want
 		// to decorate the error message rather than add a redundant stack trace.
 		if ancestorOfCause(callers(1), (*causeStackTracer).StackTrace()) {
+			if msg == "" {
+				return cause // already carries our stack, nothing to decorate
+			}
 			return errors.WithMessage(cause, msg) // no stack added, no pop required
 		}
+	}
+
+	// An empty message adds no prefix; we still ensure a stack trace is present.
+	if msg == "" {
+		return popStack(errors.WithStack(cause))
 	}
 
 	// Otherwise we can't see a stack trace that represents ourselves, so let's add one.

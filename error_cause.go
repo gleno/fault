@@ -10,18 +10,17 @@ type _ErrorWithCause struct {
 var _ Fault = (*_ErrorWithCause)(nil)
 
 func (s *_ErrorWithCause) Error() string {
+	if s.cause == nil {
+		return s.msg
+	}
+	if s.msg == "" {
+		return s.cause.Error()
+	}
 	return fmt.Sprintf("%s: %s", s.msg, s.cause.Error())
 }
 
 func (s *_ErrorWithCause) Unwrap() error {
 	return s.cause
-}
-
-func (s *_ErrorWithCause) Is(target error) bool {
-	if t, ok := target.(*_ErrorWithCause); ok {
-		return s.msg == t.msg
-	}
-	return s._Error.Is(target)
 }
 
 func (s *_ErrorWithCause) From(err error, message string) Fault {

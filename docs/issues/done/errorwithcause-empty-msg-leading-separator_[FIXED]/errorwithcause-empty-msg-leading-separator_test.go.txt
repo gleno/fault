@@ -1,0 +1,29 @@
+package fault
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestFromEmptyMessageNoLeadingSeparator(t *testing.T) {
+	root := Errorf("root cause")
+	err := From(root, "")
+
+	got := err.Error()
+	if strings.HasPrefix(got, ": ") {
+		t.Fatalf("From(root, \"\").Error() has malformed leading separator: %q", got)
+	}
+	if strings.Contains(got, ": :") || strings.HasSuffix(got, ": ") {
+		t.Fatalf("From(root, \"\").Error() has dangling separator: %q", got)
+	}
+}
+
+func TestWrapEmptyMessageNoLeadingSeparator(t *testing.T) {
+	root := Errorf("root cause")
+	wrapped := Sentinel("x").From(root, "")
+
+	got := wrapped.Error()
+	if strings.Contains(got, ": :") {
+		t.Fatalf("Sentinel.From(root, \"\").Error() has doubled separator: %q", got)
+	}
+}

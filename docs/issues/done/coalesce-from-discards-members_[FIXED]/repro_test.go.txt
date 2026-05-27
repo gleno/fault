@@ -1,0 +1,26 @@
+package fault
+
+import (
+	"errors"
+	"testing"
+)
+
+// Repro fixture for: _CoalesceError.From discards members from errors.Is/As traversal.
+// RED on current main. Do NOT add to the live suite; copy to package root to run:
+//   cp "docs/issues/coalesce-from-discards-members_[PICKUP]/repro_test.go" ./dig_repro_test.go
+//   go test -run TestReproCoalesceFromPreservesMembers ./...
+//   rm ./dig_repro_test.go
+func TestReproCoalesceFromPreservesMembers(t *testing.T) {
+	var e1 = Errorf("first")
+	var e2 = Errorf("second")
+	var coalesced = Coalesce(e1, e2).(*_CoalesceError)
+
+	var derived = coalesced.From(Errorf("root cause"), "batch context")
+
+	if !errors.Is(derived, e1) {
+		t.Errorf("From: expected errors.Is to still find first member e1")
+	}
+	if !errors.Is(derived, e2) {
+		t.Errorf("From: expected errors.Is to still find second member e2")
+	}
+}

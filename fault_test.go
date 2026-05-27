@@ -163,25 +163,26 @@ func TestSentinelAsAuthFault(t *testing.T) {
 	}
 }
 
-func TestErrorWithCauseIsMatchesSameMessage(t *testing.T) {
+func TestErrorWithCauseUnrelatedSameMessageDoNotMatch(t *testing.T) {
 	var a = From(Errorf("cause a"), "same context")
 	var b = From(Errorf("cause b"), "same context")
 
-	if !errors.Is(a, b) {
-		t.Errorf("expected two _ErrorWithCause with the same message to match via errors.Is")
+	if errors.Is(a, b) {
+		t.Errorf("two unrelated _ErrorWithCause sharing a message must not match via errors.Is")
 	}
 }
 
 func TestErrorWithCauseFrom(t *testing.T) {
-	var base = From(Errorf("root"), "outer")
+	var sentinel = Sentinel("not found")
+	var base = sentinel.From(Errorf("root"), "outer")
 	var derived = base.From(Errorf("inner"), "middle")
 
-	if derived.Error() != "outer: middle: inner" {
+	if derived.Error() != "not found: middle: inner" {
 		t.Errorf("unexpected error message: %q", derived.Error())
 	}
 
-	if !errors.Is(derived, base) {
-		t.Errorf("expected derived to keep the original message and match base via errors.Is")
+	if !errors.Is(derived, sentinel) {
+		t.Errorf("expected chained From to preserve the sentinel identity via errors.Is")
 	}
 }
 

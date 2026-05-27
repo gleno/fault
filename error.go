@@ -1,6 +1,11 @@
 package fault
 
+import "sync/atomic"
+
+var _sentinelIDs atomic.Uint64
+
 type _Error struct {
+	id  uint64
 	msg string
 }
 
@@ -10,11 +15,14 @@ func (s *_Error) Error() string {
 	return s.msg
 }
 
+// Is matches on the sentinel identity carried by the error, not on its message
+// text. A zero id means the error is not a sentinel and matches nothing by value.
 func (s *_Error) Is(target error) bool {
-	if t, ok := target.(*_Error); ok {
-		return s.msg == t.msg
+	t, ok := target.(*_Error)
+	if !ok {
+		return false
 	}
-	return false
+	return s.id != 0 && s.id == t.id
 }
 
 func (s *_Error) Unwrap() error {

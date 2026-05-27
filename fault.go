@@ -24,7 +24,7 @@ type Fault interface {
 // Sentinel is used to create compile-time errors that are intended to be value only, with
 // no associated stack trace.
 func Sentinel(msg string) Fault {
-	return &_Error{msg}
+	return &_Error{id: _sentinelIDs.Add(1), msg: msg}
 }
 
 func MissingValue(msg string) Fault {
@@ -39,31 +39,33 @@ func From(err error, message string) Fault {
 }
 
 func MakeUserErrorf(format string, args ...any) Fault {
-	return TagAsUserFault(errors.Errorf(format, args...), format)
+	var msg = fmt.Sprintf(format, args...)
+	return TagAsUserFault(errors.New(msg), msg)
 }
 
 func MakeAuthErrorf(format string, args ...any) Fault {
-	return TagAsAuthError(errors.Errorf(format, args...), format)
+	var msg = fmt.Sprintf(format, args...)
+	return TagAsAuthError(errors.New(msg), msg)
 }
 
 func MakeRetryableErrorf(format string, args ...any) Fault {
-	return TagAsRetryable(errors.Errorf(format, args...), format)
+	var msg = fmt.Sprintf(format, args...)
+	return TagAsRetryable(errors.New(msg), msg)
 }
 
 // GetFullError will write all .Error() messages in possibly wrapped error,
 // and also attach stack trace if it exists
 func GetFullError(err error) string {
 
-	var fullError string
-	var stackTrace = GetStackTrace(err)
-	if stackTrace != nil {
-		fullError = fmt.Sprintf("%+v\n", stackTrace)
+	if err == nil {
+		return ""
 	}
 
-	fullError = fmt.Sprintf("%s\n%s", fullError, err.Error())
-	for cause := errors.Unwrap(err); cause != nil; cause = errors.Unwrap(cause) {
-		fullError = fmt.Sprintf("%s\n%s", fullError, cause.Error())
+	// err.Error() already renders the whole wrapped chain, so the stack trace is
+	// all we add — re-walking Unwrap here would just repeat each layer's message.
+	if stackTrace := GetStackTrace(err); stackTrace != nil {
+		return fmt.Sprintf("%+v\n%s", stackTrace, err.Error())
 	}
 
-	return fullError
+	return err.Error()
 }
