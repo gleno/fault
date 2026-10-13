@@ -38,13 +38,24 @@ func tag(err error, tag Tag, reason string) Fault {
 	}
 }
 
+//go:noinline
+func newTagged(tag Tag, msg string) Fault {
+	return &_ErrorWithTag{
+		_ErrorWithCause{
+			_Error: _Error{msg: msg},
+			cause:  &_stackError{stack: callers(1)},
+		}, tag,
+	}
+}
+
 func (s *_ErrorWithTag) WithMessage(msg string) Fault {
 	return &_ErrorWithCause{_Error: _Error{msg: msg}, cause: s}
 }
 
+//go:noinline
 func (s *_ErrorWithTag) From(err error, message string) Fault {
 	return &_ErrorWithTag{
-		_ErrorWithCause{_Error: s._Error, cause: Wrap(err, message)},
+		_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(1))},
 		s.tag,
 	}
 }

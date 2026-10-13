@@ -24,7 +24,7 @@ func Sentinel(msg string) Fault {
 }
 
 func MissingValue(msg string) Fault {
-	return Sentinel(msg).AsValueMissing(msg)
+	return newTagged(NotFoundFault, msg)
 }
 
 //go:noinline
@@ -36,18 +36,15 @@ func From(err error, message string) Fault {
 }
 
 func MakeUserErrorf(format string, args ...any) Fault {
-	var msg = fmt.Sprintf(format, args...)
-	return TagAsUserFault(newError(msg, nil), msg)
+	return newTagged(UserFault, fmt.Sprintf(format, args...))
 }
 
 func MakeAuthErrorf(format string, args ...any) Fault {
-	var msg = fmt.Sprintf(format, args...)
-	return TagAsAuthError(newError(msg, nil), msg)
+	return newTagged(AuthFault, fmt.Sprintf(format, args...))
 }
 
 func MakeRetryableErrorf(format string, args ...any) Fault {
-	var msg = fmt.Sprintf(format, args...)
-	return TagAsRetryable(newError(msg, nil), msg)
+	return newTagged(RetryableFault, fmt.Sprintf(format, args...))
 }
 
 // GetFullError will write all .Error() messages in possibly wrapped error,

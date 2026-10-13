@@ -1,7 +1,5 @@
 package fault
 
-import "fmt"
-
 type _ErrorWithCause struct {
 	_Error
 	cause error
@@ -10,13 +8,7 @@ type _ErrorWithCause struct {
 var _ Fault = (*_ErrorWithCause)(nil)
 
 func (s *_ErrorWithCause) Error() string {
-	if s.cause == nil {
-		return s.msg
-	}
-	if s.msg == "" {
-		return s.cause.Error()
-	}
-	return fmt.Sprintf("%s: %s", s.msg, s.cause.Error())
+	return prefixed(s.msg, s.cause)
 }
 
 func (s *_ErrorWithCause) Unwrap() error {

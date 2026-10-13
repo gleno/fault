@@ -9,15 +9,7 @@ type _stackError struct {
 	stack stack
 }
 
-func (e *_stackError) Error() string {
-	if e.cause == nil {
-		return e.msg
-	}
-	if e.msg == "" {
-		return e.cause.Error()
-	}
-	return e.msg + ": " + e.cause.Error()
-}
+func (e *_stackError) Error() string { return prefixed(e.msg, e.cause) }
 
 func (e *_stackError) Unwrap() error { return e.cause }
 
@@ -32,11 +24,20 @@ type _messageError struct {
 	cause error
 }
 
-func (e *_messageError) Error() string {
-	if e.msg == "" {
-		return e.cause.Error()
-	}
-	return e.msg + ": " + e.cause.Error()
-}
+func (e *_messageError) Error() string { return prefixed(e.msg, e.cause) }
 
 func (e *_messageError) Unwrap() error { return e.cause }
+
+func prefixed(msg string, cause error) string {
+	if cause == nil {
+		return msg
+	}
+	var rest = cause.Error()
+	if msg == "" {
+		return rest
+	}
+	if rest == "" {
+		return msg
+	}
+	return msg + ": " + rest
+}
