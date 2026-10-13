@@ -142,7 +142,7 @@ If the deferred call catches a panic, `err` is set to a stack-traced error (`"ca
 log.Print(fault.GetFullError(err))
 ```
 
-`GetFullError` writes the stack trace (if any) followed by every message in the wrapped chain.
+`GetFullError` writes the message chain once, followed by the stack trace (if any) from where the error originated.
 
 ## API reference
 
