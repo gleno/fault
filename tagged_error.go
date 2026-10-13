@@ -22,18 +22,17 @@ type _ErrorWithTag struct {
 
 var _ Fault = (*_ErrorWithTag)(nil)
 
+//go:noinline
 func tag(err error, tag Tag, reason string) Fault {
 
 	if err == nil {
 		return nil
 	}
 
-	var wrr = popStack(popStack(Wrap(err, "")))
-
 	return &_ErrorWithTag{
 		_ErrorWithCause{
 			_Error: _Error{msg: reason},
-			cause:  wrr,
+			cause:  wrap(err, "", callers(1)),
 		}, tag,
 	}
 }
@@ -55,7 +54,7 @@ func (s *_ErrorWithTag) WithMessage(msg string) Fault {
 //go:noinline
 func (s *_ErrorWithTag) From(err error, message string) Fault {
 	return &_ErrorWithTag{
-		_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(1))},
+		_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(0))},
 		s.tag,
 	}
 }

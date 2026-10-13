@@ -102,11 +102,6 @@ func newError(msg string, cause error) *_stackError {
 	return &_stackError{msg: msg, cause: cause, stack: capture()}
 }
 
-//go:noinline
-func withStackError(cause error) *_stackError {
-	return &_stackError{cause: cause, stack: capture()}
-}
-
 // popStack removes the top frame from a stack error, dropping our own infrastructure frame
 // so the trace begins at the code that called us. It is a no-op on errors without a stack.
 func popStack(err error) error {
@@ -161,9 +156,10 @@ func Errorf(msg string, args ...any) error {
 // Wrap creates a new error from a cause, decorating the original error message with a
 // prefix. It idempotently creates a stack trace, meaning we won't create another stack
 // trace when there is already one present that matches our current program position.
+//
 //go:noinline
 func Wrap(cause error, msg string) error {
-	return wrap(cause, msg, callers(1))
+	return wrap(cause, msg, callers(0))
 }
 
 //go:noinline
@@ -171,18 +167,10 @@ func Wrapf(cause error, msg string, args ...any) error {
 	if cause == nil {
 		return nil
 	}
-	return wrap(cause, fmt.Sprintf(msg, args...), callers(1))
+	return wrap(cause, fmt.Sprintf(msg, args...), callers(0))
 }
 
-// wrap holds the shared body of Wrap and Wrapf. The public entry points capture ourStack at
-// the true call site and do no frame accounting of their own. On the paths that add a fresh
-// stack, wrap pops both its own frame and the entry point's frame so the trace begins at user
-// code regardless of which entry point was called. The idempotent paths return the cause (or a
-// stackless message wrapper) untouched and must not be popped — popping there would mutate the
-// cause's own stack. All three functions are noinline to keep this frame arithmetic stable.
-//
-//go:noinline
-func wrap(cause error, msg string, ourStack []uintptr) error {
+func wrap(cause error, msg string, site []uintptr) error {
 	if cause == nil {
 		return nil
 	}
@@ -192,21 +180,16 @@ func wrap(cause error, msg string, ourStack []uintptr) error {
 		// If our cause has set a stack trace, and that trace is a child of our own function
 		// as inferred by prefix matching our current program counter stack, then we only want
 		// to decorate the error message rather than add a redundant stack trace.
-		if ancestorOfCause(ourStack, (*causeStackTracer).StackTrace()) {
+		if ancestorOfCause(site[1:], (*causeStackTracer).StackTrace()) {
 			if msg == "" {
 				return cause // already carries our stack, nothing to decorate
 			}
-			return &_messageError{msg: msg, cause: cause} // no stack added, no pop required
+			return &_messageError{msg: msg, cause: cause}
 		}
 	}
 
-	// An empty message adds no prefix; we still ensure a stack trace is present.
-	if msg == "" {
-		return popStack(popStack(withStackError(cause)))
-	}
-
 	// Otherwise we can't see a stack trace that represents ourselves, so let's add one.
-	return popStack(popStack(newError(msg, cause)))
+	return &_stackError{msg: msg, cause: cause, stack: site}
 }
 
 func GetStackTrace(err error) StackTrace {

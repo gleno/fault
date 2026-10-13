@@ -31,7 +31,7 @@ func MissingValue(msg string) Fault {
 func From(err error, message string) Fault {
 	return &_ErrorWithCause{
 		_Error: _Error{msg: message},
-		cause:  wrap(err, "", callers(1)),
+		cause:  wrap(err, "", callers(0)),
 	}
 }
 
