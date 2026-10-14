@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -91,10 +92,7 @@ func (s stack) trace() StackTrace {
 //
 //go:noinline
 func capture() stack {
-	const depth = 32
-	var pcs = make([]uintptr, depth)
-	var n = runtime.Callers(3, pcs)
-	return stack(pcs[:n])
+	return stack(callers(1))
 }
 
 //go:noinline
@@ -116,10 +114,12 @@ func popStack(err error) error {
 	return err
 }
 
+const maxStackDepth = 512
+
 func callers(skip int) []uintptr {
-	var pc = make([]uintptr, 32)        // assume we'll have at most 32 frames
-	var n = runtime.Callers(skip+3, pc) // capture those frames, skipping runtime.Callers, ourselves and the calling function
-	return pc[:n]                       // return everything that we captured
+	var pc = make([]uintptr, maxStackDepth)
+	var n = runtime.Callers(skip+3, pc)
+	return slices.Clone(pc[:n])
 }
 
 // ancestorOfCause returns true if the caller looks to be an ancestor of the given stack
