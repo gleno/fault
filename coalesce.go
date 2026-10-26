@@ -48,8 +48,9 @@ func (s *_CoalesceError) Errors() []error {
 	return out
 }
 
+//go:noinline
 func (s *_CoalesceError) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: _Error{msg: message}, cause: Coalesce(err, s)}
+	return &_ErrorWithCause{_Error: _Error{msg: message}, cause: wrap(Coalesce(err, s), "", callers(0))}
 }
 
 func (s *_CoalesceError) WithMessage(msg string) Fault {
