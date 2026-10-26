@@ -23,8 +23,8 @@ func climb(height int, origin func() error) error {
 }
 
 func TestWrapKeepsOriginStackAtAnyDepth(t *testing.T) {
-	for _, depth := range []int{0, 20, 40, 64, 200} {
-		for _, height := range []int{0, 40} {
+	for _, depth := range []int{0, 20, 40, 64, 200, 600, 1024} {
+		for _, height := range []int{0, 40, 600} {
 			descend(depth, func() {
 				var origin = climb(height, failDeep)
 				var originTop = GetStackTrace(origin)[0]

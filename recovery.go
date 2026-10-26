@@ -12,23 +12,37 @@ import "fmt"
 //	    fault.RecoverPanic(recover(), &err)
 //	  }()
 //	}
+//
+//go:noinline
 func RecoverPanic(r any, errPtr *error) {
-	var err error
-	if r != nil {
-		if panicErr, ok := r.(error); ok {
-			err = newError("caught panic", panicErr)
-		} else {
-			err = newError(fmt.Sprintf("caught panic: %v", r), nil)
+	if r == nil || errPtr == nil {
+		return
+	}
+
+	site := panicOrigin(callers(0))
+	if panicErr, ok := r.(error); ok {
+		*errPtr = &_stackError{msg: "caught panic", cause: panicErr, stack: site}
+	} else {
+		*errPtr = &_stackError{msg: fmt.Sprintf("caught panic: %v", r), stack: site}
+	}
+}
+
+// panicOrigin removes recovery helpers and the runtime's panic machinery. Find
+// the panic boundary rather than assuming how many helpers called RecoverPanic.
+// Direct calls outside a panic keep their caller's stack.
+func panicOrigin(site stack) stack {
+	for i, pc := range site {
+		function, _, _ := Frame(pc).location()
+		if function != "runtime.gopanic" {
+			continue
 		}
+		for i++; i < len(site); i++ {
+			function, _, _ = Frame(site[i]).location()
+			if !isMachineryFrame(function) {
+				return site[i:]
+			}
+		}
+		break
 	}
-
-	if err != nil && errPtr != nil {
-		// Pop twice: once for newError, then again for the defer function we must run this
-		// under. We want the stacktrace to originate at the source of the panic, not in the
-		// infrastructure that catches it.
-		err = popStack(err) // newError
-		err = popStack(err) // defer
-
-		*errPtr = err
-	}
+	return site
 }

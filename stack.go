@@ -30,8 +30,8 @@ func (f Frame) location() (function, file string, line int) {
 	return fn.Name(), file, line
 }
 
-// Format renders a single frame. "%+v" gives "<func>\n\t<file>:<line>"; "%v"/"%s" give
-// the file:line; "%d" the line.
+// Format renders a single frame. "%+v" gives "<func>\n\t<file>:<line>"; "%v" gives
+// the file:line; "%s" the file; "%d" the line.
 func (f Frame) Format(s fmt.State, verb rune) {
 	function, file, line := f.location()
 	switch verb {
@@ -85,41 +85,21 @@ func (s stack) trace() StackTrace {
 	return trace
 }
 
-// capture records the call stack with its top frame at the caller of the constructor that
-// invokes it (skipping runtime.Callers, capture itself and that constructor). The public
-// entry points then popStack their own frame so the trace begins at user code. Kept
-// noinline so the frame arithmetic holds regardless of inlining decisions.
+// callers captures the caller of its caller, plus any additional frames to skip.
+// Capture through the goroutine root: ancestorOfCause compares stack suffixes,
+// which only align when neither stack has been truncated.
 //
 //go:noinline
-func capture() stack {
-	return stack(callers(1))
-}
-
-//go:noinline
-func newError(msg string, cause error) *_stackError {
-	return &_stackError{msg: msg, cause: cause, stack: capture()}
-}
-
-// popStack removes the top frame from a stack error, dropping our own infrastructure frame
-// so the trace begins at the code that called us. It is a no-op on errors without a stack.
-func popStack(err error) error {
-	if err == nil {
-		return err
-	}
-	se, ok := err.(*_stackError)
-	if !ok || len(se.stack) == 0 {
-		return err
-	}
-	se.stack = se.stack[1:]
-	return err
-}
-
-const maxStackDepth = 512
-
 func callers(skip int) []uintptr {
-	var pc = make([]uintptr, maxStackDepth)
-	var n = runtime.Callers(skip+3, pc)
-	return slices.Clone(pc[:n])
+	var initial [32]uintptr
+	pc := initial[:]
+	for {
+		n := runtime.Callers(skip+3, pc)
+		if n < len(pc) {
+			return slices.Clone(pc[:n])
+		}
+		pc = make([]uintptr, len(pc)*2)
+	}
 }
 
 // ancestorOfCause returns true if the caller looks to be an ancestor of the given stack
@@ -149,8 +129,10 @@ func ancestorOfCause(ourStack []uintptr, causeStack StackTrace) bool {
 
 // Errorf produces a stack-traced error, interpolating message parameters. Use this when
 // you want the stack trace to start at the place you create the error.
+//
+//go:noinline
 func Errorf(msg string, args ...any) error {
-	return popStack(newError(fmt.Sprintf(msg, args...), nil))
+	return &_stackError{msg: fmt.Sprintf(msg, args...), stack: callers(0)}
 }
 
 // Wrap creates a new error from a cause, decorating the original error message with a
