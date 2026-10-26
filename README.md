@@ -119,7 +119,7 @@ func runAll(tasks []Task) error {
 }
 ```
 
-The combined error joins messages with `"; "`, and `errors.Is` / `errors.As` traverse into each underlying error — so a tag on any member is still detectable (e.g. `fault.IsRetryable` on the coalesced result).
+The combined error joins messages with `"; "`, and `errors.Is` / `errors.As` traverse the underlying errors from last to first. When members carry different tags, the last tagged member determines `IsRetryable`, `IsUserFault`, `IsAuthFault`, `IsNotFoundFault`, and `GetTagMessage`.
 
 ### Recovering from panics
 
@@ -160,7 +160,7 @@ Constructors and helpers:
 | `GetStackTrace` | `(err error) StackTrace` | Extract the stack trace, or `nil` |
 | `GetFullError` | `(err error) string` | Render message chain + stack trace |
 | `MakeUserErrorf` / `MakeAuthErrorf` / `MakeRetryableErrorf` | `(format string, args ...any) Fault` | Create and tag in one call |
-| `MissingValue` | `(msg string) Fault` | Sentinel pre-tagged as not-found |
+| `MissingValue` | `(msg string) Fault` | Stack-traced not-found error |
 
 Tagging:
 
