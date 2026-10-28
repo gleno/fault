@@ -5,6 +5,8 @@ import "fmt"
 type Fault interface {
 	error
 
+	// From adds a cause and context while retaining the receiver, including its
+	// identity, tags, messages, and earlier causes. The receiver is searched first.
 	From(err error, message string) Fault
 	WithMessage(message string) Fault
 
@@ -20,18 +22,28 @@ type Fault interface {
 // Sentinel is used to create compile-time errors that are intended to be value only, with
 // no associated stack trace.
 func Sentinel(msg string) Fault {
-	return &_Error{id: _sentinelIDs.Add(1), msg: msg}
+	return &_Error{msg: msg}
 }
 
 func MissingValue(msg string) Fault {
 	return newTagged(NotFoundFault, msg)
 }
 
+// From adds context and a stack trace to a cause. To retain an existing Fault
+// while adding another cause, use its From method.
+//
 //go:noinline
 func From(err error, message string) Fault {
+	return from(nil, err, message, callers(0))
+}
+
+// Keep the actual receiver in the error tree rather than copying its fields.
+// Coalesce searches last to first, so the receiver's tags and origin take
+// precedence while both the receiver and the added cause remain discoverable.
+func from(receiver, cause error, message string, site []uintptr) Fault {
 	return &_ErrorWithCause{
 		_Error: _Error{msg: message},
-		cause:  wrap(err, "", callers(0)),
+		cause:  wrap(Coalesce(cause, receiver), "", site),
 	}
 }
 

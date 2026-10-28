@@ -69,6 +69,37 @@ if err := lookup("42"); errors.Is(err, ErrNotFound) {
 
 Sentinels carry no stack trace. `From` attaches a cause (and its trace); `WithMessage` adds a message layer while still matching the sentinel via `errors.Is`.
 
+### Adding causes to an existing fault
+
+The `From` method is additive. It keeps the entire receiver, including its sentinel
+identity, tags, messages, and earlier causes, and adds the supplied cause and context.
+Every method returns a new value; the receiver is unchanged.
+
+```go
+base := fault.Sentinel("operation failed").
+	AsRetryable("temporary").
+	WithMessage("loading profile")
+first := base.From(firstFailure, "first attempt")
+both := first.From(secondFailure, "second attempt")
+
+errors.Is(both, base)          // true
+errors.Is(both, firstFailure)  // true
+errors.Is(both, secondFailure) // true
+fault.IsRetryable(both)       // true
+```
+
+`errors.Is` and `errors.As` can find errors in both branches. The receiver is searched
+before the added cause, so its tag and stack trace take precedence when present.
+An untagged receiver can still expose a tag on the added cause. Stack attachment
+follows the usual wrapping rule: a trace from the current call path is reused;
+otherwise a trace is captured at the `From` call.
+
+Messages use the same rendering as `fault.From(fault.Coalesce(cause, receiver), message)`:
+`"message: cause; receiver"`, retaining the full messages of both branches.
+`receiver.From(nil, message)` keeps the receiver and adds the message; an empty
+message adds no text. The package function `fault.From(cause, message)` wraps a single
+cause and has no receiver to retain.
+
 ### Tagging errors and checking tags
 
 ```go

@@ -17,7 +17,7 @@ func (s *_ErrorWithCause) Unwrap() error {
 
 //go:noinline
 func (s *_ErrorWithCause) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(0))}
+	return from(s, err, message, callers(0))
 }
 
 func (s *_ErrorWithCause) WithMessage(msg string) Fault {

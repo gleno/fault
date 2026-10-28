@@ -1,11 +1,6 @@
 package fault
 
-import "sync/atomic"
-
-var _sentinelIDs atomic.Uint64
-
 type _Error struct {
-	id  uint64
 	msg string
 }
 
@@ -15,14 +10,9 @@ func (s *_Error) Error() string {
 	return s.msg
 }
 
-// Is matches on the sentinel identity carried by the error, not on its message
-// text. A zero id means the error is not a sentinel and matches nothing by value.
+// Builders retain the original sentinel, so its pointer is its identity.
 func (s *_Error) Is(target error) bool {
-	t, ok := target.(*_Error)
-	if !ok {
-		return false
-	}
-	return s.id != 0 && s.id == t.id
+	return s == target
 }
 
 func (s *_Error) Unwrap() error {
@@ -47,7 +37,7 @@ func (s *_Error) AsAuthFault(msg string) Fault {
 
 //go:noinline
 func (s *_Error) From(err error, message string) Fault {
-	return &_ErrorWithCause{_Error: *s, cause: wrap(err, message, callers(0))}
+	return from(s, err, message, callers(0))
 }
 
 func (s *_Error) WithMessage(msg string) Fault {

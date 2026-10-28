@@ -31,10 +31,11 @@ func TestSentinelIsMatchesSelf(t *testing.T) {
 
 func TestSentinelIsDoesNotMatchDifferent(t *testing.T) {
 	var a = Sentinel("not found")
-	var b = Sentinel("timeout")
-
-	if errors.Is(a, b) {
-		t.Errorf("expected different sentinels to not match")
+	for _, message := range []string{"not found", "timeout"} {
+		var b = Sentinel(message)
+		if errors.Is(a, b) || errors.Is(a.From(nil, "context"), b) {
+			t.Errorf("distinct sentinels must not match, even with the same message: %q", message)
+		}
 	}
 }
 
@@ -43,7 +44,7 @@ func TestSentinelFrom(t *testing.T) {
 	var cause = Errorf("db failure")
 	var wrapped = s.From(cause, "lookup user")
 
-	if wrapped.Error() != "not found: lookup user: db failure" {
+	if wrapped.Error() != "lookup user: db failure; not found" {
 		t.Errorf("unexpected error message: %q", wrapped.Error())
 	}
 }
@@ -174,15 +175,19 @@ func TestErrorWithCauseUnrelatedSameMessageDoNotMatch(t *testing.T) {
 
 func TestErrorWithCauseFrom(t *testing.T) {
 	var sentinel = Sentinel("not found")
-	var base = sentinel.From(Errorf("root"), "outer")
-	var derived = base.From(Errorf("inner"), "middle")
+	var root = Errorf("root")
+	var inner = Errorf("inner")
+	var base = sentinel.From(root, "outer")
+	var derived = base.From(inner, "middle")
 
-	if derived.Error() != "not found: middle: inner" {
+	if derived.Error() != "middle: inner; outer: root; not found" {
 		t.Errorf("unexpected error message: %q", derived.Error())
 	}
 
-	if !errors.Is(derived, sentinel) {
-		t.Errorf("expected chained From to preserve the sentinel identity via errors.Is")
+	for _, target := range []error{sentinel, base, root, inner} {
+		if !errors.Is(derived, target) {
+			t.Errorf("expected chained From to retain %v", target)
+		}
 	}
 }
 

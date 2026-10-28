@@ -22,7 +22,7 @@ func TestTagKeepsOriginStack(t *testing.T) {
 		{"From.AsUserFault", From(deep, "CONTEXT").AsUserFault("REASON"), deepTop},
 		{"Sentinel.From.AsAuthFault", Sentinel("SENTINEL").From(deep, "CONTEXT").AsAuthFault("REASON"), deepTop},
 		{"tagged.AsValueMissing", TagAsRetryable(deep, "REASON").AsValueMissing("RETAG"), deepTop},
-		{"tagged.From", TagAsRetryable(deep, "REASON").From(local, "FETCHING"), localTop},
+		{"tagged.From keeps receiver origin", TagAsRetryable(deep, "REASON").From(local, "FETCHING"), deepTop},
 	}
 
 	for _, c := range cases {

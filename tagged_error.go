@@ -53,10 +53,7 @@ func (s *_ErrorWithTag) WithMessage(msg string) Fault {
 
 //go:noinline
 func (s *_ErrorWithTag) From(err error, message string) Fault {
-	return &_ErrorWithTag{
-		_ErrorWithCause{_Error: s._Error, cause: wrap(err, message, callers(0))},
-		s.tag,
-	}
+	return from(s, err, message, callers(0))
 }
 
 func (s *_ErrorWithTag) AsUserFault(msg string) Fault {

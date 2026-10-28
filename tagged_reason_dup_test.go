@@ -27,7 +27,7 @@ func TestTaggedErrorRendersReasonOnce(t *testing.T) {
 		{"MakeAuthErrorf", MakeAuthErrorf("MADE %d", 1), "MADE 1", "MADE 1", AuthFault},
 		{"MakeRetryableErrorf", MakeRetryableErrorf("MADE %d", 1), "MADE 1", "MADE 1", RetryableFault},
 		{"MissingValue", MissingValue("MISSING"), "MISSING", "MISSING", NotFoundFault},
-		{"tagged.From", tagged.From(errors.New("DOWN"), "FETCHING"), "REASON: FETCHING: DOWN", "REASON", RetryableFault},
+		{"tagged.From", tagged.From(errors.New("DOWN"), "FETCHING"), "FETCHING: DOWN; REASON: BOOM", "REASON", RetryableFault},
 		{"tagged.WithMessage", tagged.WithMessage("OUTER"), "OUTER: REASON: BOOM", "REASON", RetryableFault},
 		{"tagged.AsUserFault", tagged.AsUserFault("RETAG"), "RETAG: REASON: BOOM", "RETAG", UserFault},
 		{"tagged.AsValueMissing", tagged.AsValueMissing("RETAG"), "RETAG: REASON: BOOM", "RETAG", NotFoundFault},
